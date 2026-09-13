@@ -16,6 +16,22 @@ def normalize(val, min_val=-10, max_val=9):
 def denormalize(val, min_val=-10, max_val=9):
     return min_val + val * (max_val - min_val)
 
+def calculate_accuracy(net, X_norm, y_raw_true, c0=-10, c1=9):
+    correct = 0
+    threshold_mid = (c0 + c1) / 2
+    
+    for i in range(len(X_norm)):
+        pred_norm = net.forward(X_norm[i:i+1])[0][0]
+        pred_denorm = denormalize(pred_norm, min_val=c0, max_val=c1)
+        
+        assigned_class = c1 if pred_denorm >= threshold_mid else c0
+        true_class = y_raw_true[i][0]
+        
+        if assigned_class == true_class:
+            correct += 1
+            
+    return (correct / len(X_norm)) * 100
+
 class NN:
     def __init__(self, layer_sizes):
         self.layer_sizes = layer_sizes
@@ -65,6 +81,10 @@ def train_network(layer_sizes, X, y, epochs=20000, lr=0.5, target_error=0.0001):
             net.backward(y[i:i+1], lr)
             
         error_history.append(total_error)
+
+        if epoch % 2000 == 0:
+            acc = calculate_accuracy(net, X, y_raw, c0, c1)
+            print(f"Epoch {epoch}, Error: {total_error:.5f}, Accuracy: {acc:.1f}%")
         
         if total_error <= target_error:
             error_history.extend([total_error] * (epochs - len(error_history)))
@@ -148,9 +168,13 @@ if __name__ == "__main__":
 
     print("training (2-2-1)...")
     net_mlp, history_mlp = train_network([2, 2, 1], X, y, epochs=epochs, lr=lr)
+    final_acc = calculate_accuracy(net_mlp, X, y_raw, c0, c1)
+    print(f"MLP Accuracy: {final_acc}%")
 
     print("training (2-1)...")
     net_perceptron, history_perceptron = train_network([2, 1], X, y, epochs=epochs, lr=lr)
+    final_acc = calculate_accuracy(net_perceptron, X, y_raw, c0, c1)
+    print(f"SLP Accuracy: {final_acc}%")
 
     print("\n--- test case:")
     test_cases = [(-10, -10), (-10, 9), (9, -10), (9, 9), (0, 0), (5, -5)]
