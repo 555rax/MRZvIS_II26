@@ -72,15 +72,79 @@ def train_network(layer_sizes, X, y, epochs=20000, lr=0.5, target_error=0.0001):
             
     return net, error_history
 
+def predict_point(net, a, b, c0=-10, c1=9):
+    raw_input = np.array([[a, b]])
+    norm_input = normalize(raw_input, min_val=c0, max_val=c1)
+
+    pred_norm = net.forward(norm_input)[0][0]
+    
+    pred_denorm = denormalize(pred_norm, min_val=c0, max_val=c1)
+    
+    threshold_mid = (c0 + c1) / 2
+    assigned_class = c1 if pred_denorm >= threshold_mid else c0
+    
+    print(f"Input: A={a}, B={b} Output: {pred_denorm:.2f} Predicted class: {assigned_class}")
+
+def plot_mse_history(history_mlp, history_perceptron):
+    plt.figure(figsize=(10, 6))
+    plt.plot(history_mlp, label='MLP', color='blue', linewidth=2)
+    plt.plot(history_perceptron, label='SLP', color='red', linestyle='--', linewidth=2)
+    
+    plt.title('SLP vs cooler SLP(MLP)')
+    plt.xlabel('Epochs')
+    plt.ylabel('MSE')
+    plt.legend()
+    plt.grid(True, which="both", ls="--")
+    plt.show()
+
+def plot_decision_boundary(net, c0=-10, c1=9):
+    padding = 1.0
+    x_min, x_max = c0 - padding, c1 + padding
+    y_min, y_max = c0 - padding, c1 + padding
+
+    xx, yy = np.meshgrid(np.linspace(x_min, x_max, 200), np.linspace(y_min, y_max, 200))
+    grid_coords = np.c_[xx.ravel(), yy.ravel()]
+    
+    grid_norm = normalize(grid_coords, min_val=c0, max_val=c1)
+    preds = np.array([net.forward(pt.reshape(1, -1))[0][0] for pt in grid_norm])
+    preds_denorm = denormalize(preds, min_val=c0, max_val=c1)
+    ZZ = preds_denorm.reshape(xx.shape)
+
+    threshold_mid = (c0 + c1) / 2
+
+    plt.figure(figsize=(8, 6))
+    
+    plt.contourf(xx, yy, ZZ, levels=[c0, threshold_mid, c1], colors=['lightblue', 'lightpink'], alpha=0.6)
+    plt.contour(xx, yy, ZZ, levels=[threshold_mid], colors='red', linewidths=2)
+
+    X_orig = np.array([[c0, c0], [c0, c1], [c1, c0], [c1, c1]])
+    y_orig = np.array([c0, c1, c1, c0])
+    
+    for i, pt in enumerate(X_orig):
+        dot_color = 'darkblue' if y_orig[i] == c0 else 'darkred'
+        plt.scatter(pt[0], pt[1], color=dot_color, edgecolors='black', s=180, linewidth=1.5, zorder=5)
+
+    plt.xlim(x_min, x_max)
+    plt.ylim(y_min, y_max)
+    
+    plt.title('Perceptron Decision Boundary')
+    plt.xlabel('A')
+    plt.ylabel('B')
+    plt.grid(True, linestyle='--', alpha=0.3)
+    plt.xticks(np.arange(-11, 11, 1))
+    plt.yticks(np.arange(-11, 11, 1))
+    plt.show()
+
 if __name__ == "__main__":
-    X_raw = np.array([[-10, -10], [-10, 9], [9, -10], [9, 9]])
-    y_raw = np.array([[-10], [9], [9], [-10]])
+    c0, c1 = -10, 9
+    X_raw = np.array([[c0, c0], [c0, c1], [c1, c0], [c1, c1]])
+    y_raw = np.array([[c0], [c1], [c1], [c0]])
 
     X = normalize(X_raw)
     y = normalize(y_raw)
 
-    epochs = 20000
-    lr = 0.5
+    epochs = 200000
+    lr = 1e-1
 
     print("training (2-2-1)...")
     net_mlp, history_mlp = train_network([2, 2, 1], X, y, epochs=epochs, lr=lr)
@@ -88,13 +152,32 @@ if __name__ == "__main__":
     print("training (2-1)...")
     net_perceptron, history_perceptron = train_network([2, 1], X, y, epochs=epochs, lr=lr)
 
-    plt.figure(figsize=(10, 6))
-    plt.plot(history_mlp, label='MLP)', color='blue', linewidth=2)
-    plt.plot(history_perceptron, label='SLP', color='red', linestyle='--', linewidth=2)
-    
-    plt.title('MLP vs SLP XOR')
-    plt.xlabel('Epochs')
-    plt.ylabel('MSE')
-    plt.legend()
-    plt.grid(True, which="both", ls="--")
-    plt.show()
+    print("\n--- test case:")
+    test_cases = [(-10, -10), (-10, 9), (9, -10), (9, 9), (0, 0), (5, -5)]
+    for a, b in test_cases:
+        predict_point(net_mlp, a, b, c0, c1)
+
+    plot_mse_history(history_mlp, history_perceptron)
+    plot_decision_boundary(net_mlp)
+
+    while True:
+        user_input = input("\nInput nubers A and B through the space(or 'q' for exit): ").strip()
+        if user_input.lower() in ['exit', 'выход', 'q']:
+            print("Exit...")
+            break
+        
+        try:
+            parts = user_input.split()
+            if len(parts) != 2:
+                print("Error: you must input two numbers!")
+                continue
+            
+            a = float(parts[0])
+            b = float(parts[1])
+            
+            print(f"--- Point A={a}, B={b} ---")
+            print("MLP (2-2-1):")
+            predict_point(net_mlp, a, b, c0, c1)
+            
+        except ValueError:
+            print("Error: invalid input!")
