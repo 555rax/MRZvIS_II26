@@ -72,7 +72,8 @@ class NN:
 def train_network(layer_sizes, X, y, epochs=20000, lr=0.5, target_error=0.0001):
     net = NN(layer_sizes)
     error_history = []
-    
+
+    final_epoch = epochs
     for epoch in range(epochs):
         total_error = 0
         for i in range(len(X)):
@@ -88,9 +89,10 @@ def train_network(layer_sizes, X, y, epochs=20000, lr=0.5, target_error=0.0001):
         
         if total_error <= target_error:
             error_history.extend([total_error] * (epochs - len(error_history)))
+            final_epoch = epoch + 1
             break
             
-    return net, error_history
+    return net, error_history, final_epoch, error_history[-1]
 
 def predict_point(net, a, b, c0=-10, c1=9):
     raw_input = np.array([[a, b]])
@@ -167,14 +169,15 @@ if __name__ == "__main__":
     lr = 1e-1
 
     print("training (2-2-1)...")
-    net_mlp, history_mlp = train_network([2, 2, 1], X, y, epochs=epochs, lr=lr)
-    final_acc = calculate_accuracy(net_mlp, X, y_raw, c0, c1)
-    print(f"MLP Accuracy: {final_acc}%")
+    net_mlp, history_mlp, final_epoch_mlp, final_error_mlp = train_network([2, 2, 1], X, y, epochs=epochs, lr=lr)
+    final_acc_mlp = calculate_accuracy(net_mlp, X, y_raw, c0, c1)
 
     print("training (2-1)...")
-    net_perceptron, history_perceptron = train_network([2, 1], X, y, epochs=epochs, lr=lr)
-    final_acc = calculate_accuracy(net_perceptron, X, y_raw, c0, c1)
-    print(f"SLP Accuracy: {final_acc}%")
+    net_perceptron, history_perceptron, final_epoch_slp, final_error_slp = train_network([2, 1], X, y, epochs=epochs, lr=lr)
+    final_acc_slp = calculate_accuracy(net_perceptron, X, y_raw, c0, c1)
+    
+    print(f"MLP Epochs: {final_epoch_mlp}   Error: {final_error_mlp}   Accuracy: {final_acc_mlp}")
+    print(f"SLP Epochs: {final_epoch_slp}   Error: {final_error_slp}   Accuracy: {final_acc_slp}")
 
     print("\n--- test case:")
     test_cases = [(-10, -10), (-10, 9), (9, -10), (9, 9), (0, 0), (5, -5)]
