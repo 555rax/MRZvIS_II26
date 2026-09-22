@@ -14,7 +14,7 @@ y_bin = np.array([[0.], [1.], [1.], [0.]])
 LR = 0.1
 MAX_EPOCHS = 20000
 EE_MSE = 0.01
-EE_BCE = 0.05
+EE_BCE = 0.35
 SEEDS = [0, 1, 2, 3, 4]
 
 
