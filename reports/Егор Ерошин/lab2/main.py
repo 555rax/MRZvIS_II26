@@ -4,10 +4,11 @@ import matplotlib.pyplot as plt
 c0 = -9.0
 c1 = -8.0
 
-LEARNING_RATE = 1.0
+
+LEARNING_RATE = 0.5
 MAX_EPOCHS = 10000
 TARGET_ERROR_MSE = 0.005
-TARGET_ERROR_BCE = 0.4
+TARGET_ERROR_BCE = 0.05
 
 X_raw = np.array([
     [-9.0, -9.0],
@@ -26,7 +27,6 @@ y_raw = np.array([
 
 def normalize_x(X):
     return (X - c0) / (c1 - c0)
-
 
 
 def normalize_y_mse(y):
@@ -50,7 +50,8 @@ def sigmoid(x):
 
 
 class MultilayerPerceptron:
-    def __init__(self, input_dim=2, hidden_dim=2, output_dim=1, seed=42):
+
+    def __init__(self, input_dim=2, hidden_dim=4, output_dim=1, seed=42):
         np.random.seed(seed)
         self.W1 = np.random.uniform(-1.0, 1.0, (input_dim, hidden_dim))
         self.b1 = np.random.uniform(-1.0, 1.0, (1, hidden_dim))
@@ -70,7 +71,6 @@ class MultilayerPerceptron:
         for epoch in range(1, max_epochs + 1):
             total_error = 0.0
 
-            # Градиенты для пакетного или онлайн обучения (здесь онлайн - обновление после каждого примера)
             for i in range(len(X)):
                 x_i = X[i:i + 1]
                 y_i = y[i:i + 1]
@@ -80,15 +80,12 @@ class MultilayerPerceptron:
                 if loss_type == 'mse':
                     err = 0.5 * (y_i[0, 0] - a2[0, 0]) ** 2
                     total_error += err
-                    # Производная MSE + сигмоида
                     delta2 = (a2 - y_i) * a2 * (1.0 - a2)
                 elif loss_type == 'bce':
-                    # Защита от деления на ноль при логарифме
                     eps = 1e-15
                     a2_clipped = np.clip(a2, eps, 1.0 - eps)
                     err = - (y_i[0, 0] * np.log(a2_clipped[0, 0]) + (1.0 - y_i[0, 0]) * np.log(1.0 - a2_clipped[0, 0]))
                     total_error += err
-                    # Красивое сокращение для градиента BCE + Сигмоида: delta2 = (a2 - y_i)
                     delta2 = (a2 - y_i)
 
                 delta1 = np.dot(delta2, self.W2.T) * a1 * (1.0 - a1)
@@ -106,17 +103,14 @@ class MultilayerPerceptron:
         return max_epochs, total_error, epoch_errors
 
 
-
 X_norm = normalize_x(X_raw)
 y_norm_mse = normalize_y_mse(y_raw)
 y_norm_bce = normalize_y_bce(y_raw)
 
-
-n_runs = 5
 seeds = [42, 123, 456, 789, 2026]
 
 print("=" * 70)
-print("СЕРИЯ ИЗ 5 ЗАПУСКОВ ДЛЯ КОНФИГУРАЦИЙ A И Б")
+print("СЕРИЯ ИЗ 5 ЗАПУСКОВ ДЛЯ КОНФИГУРАЦИЙ A И Б (ПОСЛЕ ИСПРАВЛЕНИЯ)")
 print("=" * 70)
 
 results_A = []
@@ -135,13 +129,11 @@ for seed in seeds:
     results_B.append((ep, err))
     history_B_runs.append(hist)
 
-# Обучим по одному репрезентативному представителю для детальной оценки и графиков
 mlp_rep_a = MultilayerPerceptron(seed=42)
 ep_a, err_a, hist_a = mlp_rep_a.train(X_norm, y_norm_mse, loss_type='mse', target_error=TARGET_ERROR_MSE)
 
 mlp_rep_b = MultilayerPerceptron(seed=42)
 ep_b, err_b, hist_b = mlp_rep_b.train(X_norm, y_norm_bce, loss_type='bce', target_error=TARGET_ERROR_BCE)
-
 
 
 def evaluate_config(model, loss_type, name):
@@ -169,8 +161,7 @@ def evaluate_config(model, loss_type, name):
         if pred_class == target_class:
             correct += 1
 
-        print(
-            f"{X_raw[i, 0]:.1f}\t{X_raw[i, 1]:.1f}\t{target_class:.1f}\t\t{out_norm[0, 0]:.4f}\t\t{y_pred:.4f}\t\t{pred_class:.1f}\t{abs_err:.4f}")
+        print(f"{X_raw[i, 0]:.1f}\t{X_raw[i, 1]:.1f}\t{target_class:.1f}\t\t{out_norm[0, 0]:.4f}\t\t{y_pred:.4f}\t\t{pred_class:.1f}\t{abs_err:.4f}")
 
     accuracy = (correct / len(X_raw)) * 100.0
     mean_abs_error = total_abs_error / len(X_raw)
@@ -191,31 +182,9 @@ print(f"Точность (Accuracy)            | {acc_a:<19.1f}%| {acc_b:<19.1f}
 print(f"Средняя абс. ошибка (MAE)      | {mae_a:<20.4f} | {mae_b:<20.4f}")
 
 
-def inference_demo(model, loss_type, name):
-    print(f"\n--- Режим функционирования: {name} ---")
-    test_inputs = [(-9.0, -9.0), (-9.0, -8.0), (-8.5, -8.2), (0.0, 5.0), (-8.2, -8.8)]
-    for A, B in test_inputs:
-        x_user = np.array([[A, B]])
-        x_norm_user = normalize_x(x_user)
-        out_norm, _ = model.forward(x_norm_user)
-
-        if loss_type == 'mse':
-            y_hat = denormalize_y_mse(out_norm[0, 0])
-        else:
-            y_hat = denormalize_y_bce(out_norm[0, 0])
-
-        predicted_class = c0 if abs(y_hat - c0) < abs(y_hat - c1) else c1
-        print(
-            f"Вход: ({A:.1f}, {B:.1f}) -> Выход (норм): {out_norm[0, 0]:.4f} | Выход (исх): {y_hat:.4f} -> Класс: {predicted_class:.1f}")
-
-
-inference_demo(mlp_rep_a, 'mse', "Конфигурация А")
-inference_demo(mlp_rep_b, 'bce', "Конфигурация Б")
-
-
 fig = plt.figure(figsize=(16, 12))
 
-# 1. График сходимости (суммарная ошибка от эпохи)
+# 1. График сходимости
 ax1 = fig.add_subplot(2, 2, 1)
 ax1.plot(hist_a, label='Конфигурация А (MSE)', color='blue', alpha=0.8)
 ax1.plot(hist_b, label='Конфигурация Б (BCE)', color='orange', alpha=0.8)
@@ -227,7 +196,7 @@ ax1.set_ylabel('Суммарная ошибка Es')
 ax1.legend()
 ax1.grid(True)
 
-# 2. Диаграмма разброса числа эпох по 5 запускам
+# 2. Диаграмма разброса числа эпох
 ax2 = fig.add_subplot(2, 2, 2)
 epochs_A_vals = [res[0] for res in results_A]
 epochs_B_vals = [res[1] for res in results_B]
@@ -235,7 +204,7 @@ x_indexes = np.arange(len(seeds))
 width = 0.35
 
 ax2.bar(x_indexes - width / 2, epochs_A_vals, width, label='Конф. А (MSE)', color='skyblue')
-ax2.bar(x_indexes + width / 2, epochs_B_vals, width, label='Конф. Б (BCE)', color='sandybrown')
+ax2.bar(ax2_b := x_indexes + width / 2, epochs_B_vals, width, label='Конф. Б (BCE)', color='sandybrown')
 ax2.set_title('2. Число эпох за 5 независимых запусков (seed)')
 ax2.set_xlabel('Номер запуска (seed index)')
 ax2.set_ylabel('Количество эпох')
@@ -244,12 +213,10 @@ ax2.set_xticklabels([str(s) for s in seeds])
 ax2.legend()
 ax2.grid(True, axis='y')
 
-# 3. Визуализация разделяющей поверхности (Heatmap) для Конфигурации Б
 ax3 = fig.add_subplot(2, 2, 3)
 xx, yy = np.meshgrid(np.linspace(-10, 10, 100), np.linspace(-10, 10, 100))
 grid_points = np.c_[xx.ravel(), yy.ravel()]
 grid_norm = normalize_x(grid_points)
-
 
 zz_b = np.array([mlp_rep_b.forward(np.array([pt]))[0][0, 0] for pt in grid_norm])
 zz_b = zz_b.reshape(xx.shape)
@@ -267,18 +234,18 @@ ax3.set_title('3. Разделяющая поверхность и выборк�
 ax3.set_xlabel('Ось A')
 ax3.set_ylabel('Ось B')
 
-# 4. Диаграмма сравнения точности восстановления шкалы (MAE)
+# 4. Диаграмма сравнения MAE
 ax4 = fig.add_subplot(2, 2, 4)
 configs = ['Конфигурация А (MSE)', 'Конфигурация Б (BCE)']
 mae_values = [mae_a, mae_b]
 bars = ax4.bar(configs, mae_values, color=['cornflowerblue', 'coral'])
-ax4.set_title('4. Сравнение средней абсолютной ошибки (MAE) в шкале [c0, c1]')
+ax4.set_title('4. Сравнение средней абсолютной ошибки (MAE)')
 ax4.set_ylabel('MAE')
 ax4.grid(True, axis='y')
 
 for bar in bars:
     yval = bar.get_height()
-    ax4.text(bar.get_x() + bar.get_width() / 2.0, yval + 0.01, f'{yval:.4f}', ha='center', va='bottom')
+    ax4.text(bar.get_x() + bar.get_width() / 2.0, yval + 0.001, f'{yval:.4f}', ha='center', va='bottom')
 
 plt.tight_layout()
 plt.show()
