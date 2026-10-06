@@ -12,6 +12,7 @@ y_raw = np.array([[c0], [c1], [c1], [c0]], dtype=float)
 y_bin = np.array([[0.], [1.], [1.], [0.]])
 
 LR = 0.1
+LR_CFG = {"A": 0.5, "V": LR}
 MAX_EPOCHS = 20000
 EE_BCE = 0.35
 SEEDS = [0, 1, 2, 3, 4]
@@ -40,15 +41,23 @@ def init_weights(seed, config="A", n_in=2, n_hidden=2, n_out=1):
         b1 = rng.uniform(-5.0, 5.0, (1, n_hidden))
         W2 = rng.uniform(-1.0, 1.0, (n_hidden, n_out))
     else:
-        W1 = rng.uniform(-0.5, 0.5, (n_in, n_hidden))
+        W1 = rng.uniform(-1.0, 1.0, (n_in, n_hidden))
         b1 = np.zeros((1, n_hidden))
-        W2 = rng.uniform(-0.5, 0.5, (n_hidden, n_out))
+        W2 = rng.uniform(-1.0, 1.0, (n_hidden, n_out))
     b2 = np.zeros((1, n_out))
     return W1, b1, W2, b2
 
 
+def prep_input(Xb, config):
+    # Для сигмоиды центрируем вход в [-1; 1]: сырые 1 и 8 насыщают нейроны
+    # и дают несимметричный градиент. Преобразование линейное, поэтому
+    # работает и для произвольных (A, B), в т.ч. на сетке [-10; 10].
+    if config == "A":
+        return 2.0 * (Xb - c0) / (c1 - c0) - 1.0
+    return Xb
+
 def forward(Xb, W1, b1, W2, b2, config):
-    z1 = Xb.dot(W1) + b1
+    z1 = prep_input(Xb, config).dot(W1) + b1
     h_out = hidden_activation(z1, config)
     o_out = sigmoid(h_out.dot(W2) + b2)
     return z1, h_out, o_out
@@ -57,7 +66,9 @@ def bce_loss(o_out, y, eps=1e-9):
     o_clip = np.clip(o_out, eps, 1 - eps)
     return -np.mean(y * np.log(o_clip) + (1 - y) * np.log(1 - o_clip))
 
-def train(seed, config, lr=LR, max_epochs=MAX_EPOCHS, Ee=EE_BCE):
+def train(seed, config, lr=None, max_epochs=MAX_EPOCHS, Ee=EE_BCE):
+    lr = LR_CFG[config] if lr is None else lr
+    Xp = prep_input(X, config)
     W1, b1, W2, b2 = init_weights(seed, config)
     errors = []
     converged_epoch = None
@@ -78,7 +89,7 @@ def train(seed, config, lr=LR, max_epochs=MAX_EPOCHS, Ee=EE_BCE):
 
         W2 -= h_out.T.dot(d_output) * lr
         b2 -= np.sum(d_output, axis=0, keepdims=True) * lr
-        W1 -= X.T.dot(d_hidden) * lr
+        W1 -= Xp.T.dot(d_hidden) * lr
         b1 -= np.sum(d_hidden, axis=0, keepdims=True) * lr
 
     return dict(W1=W1, b1=b1, W2=W2, b2=b2, errors=errors,
@@ -201,7 +212,7 @@ def plot_decision_surfaces(all_results, rep_seed=0):
         rep = next(r for r in all_results[config] if r["seed"] == rep_seed)
         _, _, o = forward(grid, rep["W1"], rep["b1"], rep["W2"], rep["b2"], config)
         ZZ = o.reshape(AA.shape)
-        cs = ax.contourf(AA, BB, ZZ, levels=20, cmap="coolwarm", vmin=0, vmax=1)
+        cs = ax.contourf(AA, BB, ZZ, levels=np.linspace(0, 1, 21), cmap="coolwarm", vmin=0, vmax=1)
         fig.colorbar(cs, ax=ax, label="ŷ (нормализованный выход, 0..1)")
         if ZZ.min() < 0.5 < ZZ.max():
             ax.contour(AA, BB, ZZ, levels=[0.5], colors="black", linewidths=2)
